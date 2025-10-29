@@ -247,13 +247,29 @@ def build_dataframe() -> pd.DataFrame:
 
     # UTM columns
     def _convert_row(r):
-        lat = r.get("_lat"); lon = r.get("_lon")
+        lat = r.get("_lat")
+        lon = r.get("_lon")
+    
+        # Si falta alguna coord: devolver 5 valores sí o sí
         if pd.isna(lat) or pd.isna(lon):
-            return pd.Series([None, None, None, None, None],
-                             index=["utm_e","utm_n","utm_zone","utm_hemisphere","utm_epsg"])
-        e, n, zone, hemi, epsg = latlon_to_utm(float(lat), float(lon))
-        return pd.Series([e, n, zone, hemi, epsg],
-                         index=["utm_e","utm_n","utm_zone","utm_hemisphere","utm_epsg"])
+            return pd.Series(
+                [None, None, None, None, None],
+                index=["utm_e","utm_n","utm_zone","utm_hemisphere","utm_epsg"]
+            )
+    
+        try:
+            e, n, zone, hemi, epsg = latlon_to_utm(float(lat), float(lon))
+            return pd.Series(
+                [e, n, zone, hemi, epsg],
+                index=["utm_e","utm_n","utm_zone","utm_hemisphere","utm_epsg"]
+            )
+        except Exception:
+            # Si algo falla → devolver 5 columnas vacías ✌️
+            return pd.Series(
+                [None, None, None, None, None],
+                index=["utm_e","utm_n","utm_zone","utm_hemisphere","utm_epsg"]
+            )
+
     df[["utm_e","utm_n","utm_zone","utm_hemisphere","utm_epsg"]] = df.apply(_convert_row, axis=1)
 
     # dateTime → componentes locales
@@ -319,3 +335,4 @@ def export_excel(request: Request):
         return JSONResponse({"download_url": download_url})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Export error: {e}")
+
