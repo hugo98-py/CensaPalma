@@ -152,7 +152,6 @@ def build_dataframe() -> pd.DataFrame:
     def _conv(r):
         return pd.Series(latlon_to_utm(r["_lat"], r["_lon"]),
                          index=["utm_e", "utm_n", "utm_zone", "utm_hemisphere", "utm_epsg"])
-    df[["utm_e","utm_n","utm_zone","utm_hemisphere","utm_epsg"]] = df.apply(_conv, axis=1)
 
     # fecha
     if "dateTime" in df.columns:
@@ -196,3 +195,4 @@ def export_excel(request: Request):
 
     base = str(request.base_url).rstrip("/")
     return JSONResponse({"download_url": f"{base}/downloads/{fname}"})
+
