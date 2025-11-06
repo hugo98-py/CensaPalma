@@ -219,13 +219,14 @@ def export_excel(request: Request):
     fpath = DOWNLOAD_DIR / fname
     
     for col in df.columns:
-    if is_datetime64_any_dtype(df[col]):
-        df[col] = df[col].dt.strftime("%Y-%m-%d %H:%M:%S")
+        if is_datetime64_any_dtype(df[col]):
+            df[col] = df[col].dt.strftime("%Y-%m-%d %H:%M:%S")
         
     df.to_excel(fpath, index=False)
 
     base = str(request.base_url).rstrip("/")
     return JSONResponse({"download_url": f"{base}/downloads/{fname}"})
+
 
 
 
