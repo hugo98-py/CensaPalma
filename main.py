@@ -91,14 +91,40 @@ def extract_lat_lon(value: Any) -> Optional[Tuple[float, float]]:
     if value is None:
         return None
 
-    # ✅ Evitar intentar parsear fechas, referencias u otros tipos raros
-    if not isinstance(value, (dict, list, tuple, str, int, float)):
+    # Ignorar tipos que NO pueden ser coordenadas
+    if not isinstance(value, (dict, list, tuple, str, float, int)):
         return None
 
+    # Intenta en distintos formatos
+    got = _from_sequence(value)
+    if got: return got
+
+    got = _from_string_pair(value) if isinstance(value, str) else None
+    if got: return got
+
+    if isinstance(value, dict):
+        lat = _to_float_safe(value.get("lat") or value.get("latitude"))
+        lon = _to_float_safe(value.get("lon") or value.get("lng") or value.get("longitude"))
+        if lat is not None and lon is not None:
+            return (lat, lon)
+
+    return None
+
+
 def find_coord_in_record(record: Dict[str, Any]) -> Tuple[Optional[float], Optional[float]]:
-    for k, v in record.items():
-        got = extract_lat_lon(v)
-        if got: return got
+    # ✅ Caso principal: usar "coords" directamente
+    if "coords" in record:
+        got = extract_lat_lon(record["coords"])
+        if got:
+            return got
+
+    # ✅ Fallback: intentar parsing plano en campos como lat/lon
+    lat = _to_float_safe(record.get("lat") or record.get("latitude"))
+    lon = _to_float_safe(record.get("lon") or record.get("lng") or record.get("longitude"))
+    if lat is not None and lon is not None:
+        return lat, lon
+
+    # 🛑 Si no encontramos nada, devolvemos None
     return None, None
 
 # ─────────────────────────────────────────────── WGS84 → UTM
@@ -196,6 +222,7 @@ def export_excel(request: Request):
 
     base = str(request.base_url).rstrip("/")
     return JSONResponse({"download_url": f"{base}/downloads/{fname}"})
+
 
 
 
