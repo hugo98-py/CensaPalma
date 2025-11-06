@@ -245,7 +245,7 @@ def build_dataframe() -> pd.DataFrame:
 
     df = pd.json_normalize(rows, sep="__")
 
-    # UTM columns (robusto)
+    # ─────────────────────────────────────────────── UTM columns (100% robusto)
     utm_cols = ["utm_e", "utm_n", "utm_zone", "utm_hemisphere", "utm_epsg"]
     
     def _convert_row(r):
@@ -253,7 +253,6 @@ def build_dataframe() -> pd.DataFrame:
         lon = r.get("_lon")
     
         if pd.isna(lat) or pd.isna(lon):
-            # Siempre devolver 5 valores
             return [None, None, None, None, None]
     
         try:
@@ -263,14 +262,18 @@ def build_dataframe() -> pd.DataFrame:
             return [None, None, None, None, None]
     
     if df.empty:
-        # Si no hay filas, crea las columnas vacías con tipo object
-        for c in utm_cols:
-            df[c] = pd.Series(dtype="object")
+        utm_df = pd.DataFrame(columns=utm_cols).astype("object")
     else:
-        # Expande a 5 columnas
-        utm_vals = df.apply(_convert_row, axis=1, result_type="expand")
-        utm_vals.columns = utm_cols
-        df = pd.concat([df, utm_vals], axis=1)
+        utm_values = [ _convert_row(r) for _, r in df.iterrows() ]  # lista de listas, una por fila
+        # Garantiza que cada fila tenga EXACTAMENTE 5 elementos
+        utm_values = [ (vals + [None]*5)[:5] for vals in utm_values ]
+        utm_df = pd.DataFrame(utm_values, columns=utm_cols, index=df.index)
+    
+    # Concatena sin sobrescribir columnas existentes
+    df = pd.concat([df, utm_df], axis=1)
+    
+    # Tipos sugeridos
+    df["utm_zone"] = pd.to_numeric(df["utm_zone"], errors="coerce").astype("Int64")
 
     df[["utm_e","utm_n","utm_zone","utm_hemisphere","utm_epsg"]] = df.apply(_convert_row, axis=1)
 
@@ -337,6 +340,7 @@ def export_excel(request: Request):
         return JSONResponse({"download_url": download_url})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Export error: {e}")
+
 
 
 
