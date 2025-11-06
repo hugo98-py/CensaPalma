@@ -245,12 +245,15 @@ def build_dataframe() -> pd.DataFrame:
 
     df = pd.json_normalize(rows, sep="__")
 
-    # UTM columns
+    # UTM columns (robusto)
+    utm_cols = ["utm_e", "utm_n", "utm_zone", "utm_hemisphere", "utm_epsg"]
+    
     def _convert_row(r):
         lat = r.get("_lat")
         lon = r.get("_lon")
     
         if pd.isna(lat) or pd.isna(lon):
+            # Siempre devolver 5 valores
             return [None, None, None, None, None]
     
         try:
@@ -258,6 +261,16 @@ def build_dataframe() -> pd.DataFrame:
             return [e, n, zone, hemi, epsg]
         except Exception:
             return [None, None, None, None, None]
+    
+    if df.empty:
+        # Si no hay filas, crea las columnas vacías con tipo object
+        for c in utm_cols:
+            df[c] = pd.Series(dtype="object")
+    else:
+        # Expande a 5 columnas
+        utm_vals = df.apply(_convert_row, axis=1, result_type="expand")
+        utm_vals.columns = utm_cols
+        df = pd.concat([df, utm_vals], axis=1)
 
     df[["utm_e","utm_n","utm_zone","utm_hemisphere","utm_epsg"]] = df.apply(_convert_row, axis=1)
 
@@ -324,5 +337,6 @@ def export_excel(request: Request):
         return JSONResponse({"download_url": download_url})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Export error: {e}")
+
 
 
