@@ -19,10 +19,10 @@ from zoneinfo import ZoneInfo
 from firebase_admin.firestore import DocumentReference
 import pandas as pd
 from pyproj import Transformer
-
+from pandas.api.types import is_datetime64_any_dtype
 import firebase_admin
 from firebase_admin import credentials, firestore
-
+from pandas.api.types import is_datetime64_any_dtype
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -217,11 +217,16 @@ def export_excel(request: Request):
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     fname = f"CensaPalma_{ts}.xlsx"
     fpath = DOWNLOAD_DIR / fname
-
+    
+    for col in df.columns:
+    if is_datetime64_any_dtype(df[col]):
+        df[col] = df[col].dt.strftime("%Y-%m-%d %H:%M:%S")
+        
     df.to_excel(fpath, index=False)
 
     base = str(request.base_url).rstrip("/")
     return JSONResponse({"download_url": f"{base}/downloads/{fname}"})
+
 
 
 
