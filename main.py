@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
-
+from firebase_admin.firestore import DocumentReference
 import pandas as pd
 from pyproj import Transformer
 
@@ -88,11 +88,12 @@ def _from_string_pair(s: str) -> Optional[Tuple[float, float]]:
     return None
 
 def extract_lat_lon(value: Any) -> Optional[Tuple[float, float]]:
-    if value is None: return None
-    for fn in (_from_geopoint, _from_sequence, _from_string_pair):
-        got = fn(value)
-        if got: return got
-    return None
+    if value is None:
+        return None
+
+    # ✅ Evitar intentar parsear fechas, referencias u otros tipos raros
+    if not isinstance(value, (dict, list, tuple, str, int, float)):
+        return None
 
 def find_coord_in_record(record: Dict[str, Any]) -> Tuple[Optional[float], Optional[float]]:
     for k, v in record.items():
@@ -195,5 +196,6 @@ def export_excel(request: Request):
 
     base = str(request.base_url).rstrip("/")
     return JSONResponse({"download_url": f"{base}/downloads/{fname}"})
+
 
 
