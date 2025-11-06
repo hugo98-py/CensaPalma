@@ -58,74 +58,81 @@ def _to_float_safe(x: Any) -> Optional[float]:
             return float(x)
         if isinstance(x, str):
             return float(x.strip().replace(",", "."))
-    except:
+    except Exception:
         return None
+    return None
+
+def _from_wkt_point(s: str) -> Optional[Tuple[float, float]]:
+    s2 = s.strip().upper()
+    if not s2.startswith("POINT"):
+        return None
+    m = re.search(r"POINT\s+Z?\s*\(([^)]+)\)", s2)
+    if not m:
+        return None
+    nums = _num_re.findall(m.group(1))
+    if len(nums) < 2:
+        return None
+    lon, lat = [float(n.replace(",", ".")) for n in nums[:2]]
+    return (lat, lon)
+
+def _from_string_pair(s: str) -> Optional[Tuple[float, float]]:
+    nums = _num_re.findall(s)
+    if len(nums) < 2: return None
+    a = float(nums[0].replace(",", "."))
+    b = float(nums[1].replace(",", "."))
+    if -90 <= a <= 90 and -180 <= b <= 180: return (a, b)
+    if -90 <= b <= 90 and -180 <= a <= 180: return (b, a)
     return None
 
 def _from_geopoint(obj: Any) -> Optional[Tuple[float, float]]:
     try:
         if hasattr(obj, "latitude") and hasattr(obj, "longitude"):
-            lat = float(obj.latitude)
-            lon = float(obj.longitude)
-            return (lat, lon)
-    except:
+            return (float(obj.latitude), float(obj.longitude))
+    except Exception:
         pass
     return None
 
 def _from_sequence(seq: Any) -> Optional[Tuple[float, float]]:
     if isinstance(seq, (list, tuple)) and len(seq) >= 2:
         a = _to_float_safe(seq[0]); b = _to_float_safe(seq[1])
-        if a is not None and b is not None:
-            return (a, b)
+        if a is None or b is None: return None
+        if -90 <= a <= 90 and -180 <= b <= 180: return (a, b)
+        if -90 <= b <= 90 and -180 <= a <= 180: return (b, a)
     return None
 
-def _from_string_pair(s: str) -> Optional[Tuple[float, float]]:
-    nums = _num_re.findall(s)
-    if len(nums) >= 2:
-        a = float(nums[0].replace(",", "."))
-        b = float(nums[1].replace(",", "."))
-        return (a, b)
+def _from_mapping(d: Dict[str, Any]) -> Optional[Tuple[float, float]]:
+    if not isinstance(d, dict): return None
+    for la, lo in [("lat","lon"),("lat","lng"),("latitude","longitude"),("_lat","_long"),("y","x")]:
+        if la in d and lo in d:
+            a = _to_float_safe(d.get(la)); b = _to_float_safe(d.get(lo))
+            if a is not None and b is not None:
+                return (a, b)
     return None
 
 def extract_lat_lon(value: Any) -> Optional[Tuple[float, float]]:
-    if value is None:
-        return None
-
-    # Ignorar tipos que NO pueden ser coordenadas
-    if not isinstance(value, (dict, list, tuple, str, float, int)):
-        return None
-
-    # Intenta en distintos formatos
-    got = _from_sequence(value)
-    if got: return got
-
-    got = _from_string_pair(value) if isinstance(value, str) else None
-    if got: return got
-
-    if isinstance(value, dict):
-        lat = _to_float_safe(value.get("lat") or value.get("latitude"))
-        lon = _to_float_safe(value.get("lon") or value.get("lng") or value.get("longitude"))
-        if lat is not None and lon is not None:
-            return (lat, lon)
-
+    if value is None: return None
+    for fn in (_from_geopoint, _from_mapping, _from_sequence):
+        got = fn(value)
+        if got: return got
+    if isinstance(value, str):
+        got = _from_wkt_point(value) or _from_string_pair(value)
+        if got: return got
     return None
 
-
 def find_coord_in_record(record: Dict[str, Any]) -> Tuple[Optional[float], Optional[float]]:
-    # ✅ Caso principal: usar "coords" directamente
+    # Clave principal
     if "coords" in record:
         got = extract_lat_lon(record["coords"])
-        if got:
-            return got
-
-    # ✅ Fallback: intentar parsing plano en campos como lat/lon
+        if got: return got
+    
+    # fallback extra
     lat = _to_float_safe(record.get("lat") or record.get("latitude"))
     lon = _to_float_safe(record.get("lon") or record.get("lng") or record.get("longitude"))
     if lat is not None and lon is not None:
         return lat, lon
 
-    # 🛑 Si no encontramos nada, devolvemos None
     return None, None
+
 
 # ─────────────────────────────────────────────── WGS84 → UTM
 _transformers: Dict[int, Transformer] = {}
@@ -226,6 +233,7 @@ def export_excel(request: Request):
 
     base = str(request.base_url).rstrip("/")
     return JSONResponse({"download_url": f"{base}/downloads/{fname}"})
+
 
 
 
