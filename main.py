@@ -129,7 +129,7 @@ def build_dataframe() -> pd.DataFrame:
     fs = init_fs_client()
     rows = []
 
-    for doc in fs.collection("censaPalma").stream():
+    for doc in fs.collection("DataCenso").stream():
         d = doc.to_dict() or {}
 
         lat, lon = find_coord_in_record(d)
@@ -195,4 +195,5 @@ def export_excel(request: Request):
 
     base = str(request.base_url).rstrip("/")
     return JSONResponse({"download_url": f"{base}/downloads/{fname}"})
+
 
