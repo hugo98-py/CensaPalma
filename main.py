@@ -243,6 +243,14 @@ def build_dataframe() -> pd.DataFrame:
         row.update(base)
         rows.append(row)
 
+    
+    # 🧹 Limpiar campos brutos de coordenadas que causan estructuras inconsistentes
+    for r in rows:
+        r.pop("coords", None)
+        r.pop("coordenadas", None)
+        r.pop("latlng", None)
+    
+    # Construcción segura del DataFrame
     df = pd.DataFrame(rows)
 
     # ─────────────────────────────────────────────── UTM columns (100% robusto)
@@ -332,6 +340,8 @@ def export_excel(request: Request):
                 df[col] = df[col].str.replace(r"([+-]\d{2})(\d{2})$", r"\1:\2", regex=True)
 
         # Escribir Excel
+        print(df.columns.tolist())
+        print(df.dtypes)
         df.to_excel(fpath, index=False)  # requiere openpyxl
 
         # URL absoluta
@@ -340,6 +350,7 @@ def export_excel(request: Request):
         return JSONResponse({"download_url": download_url})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Export error: {e}")
+
 
 
 
