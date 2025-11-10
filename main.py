@@ -11,8 +11,8 @@ GET /export  →  {"download_url": ".../downloads/<archivo>.xlsx"}
 • Guarda Excel en /tmp (filesystem efímero en Render), servido en /downloads.
 """
 
-import os, re, json, base64, math
-from typing import Any, Dict, List, Optional, Tuple
+import os, re, json, base64
+from typing import Any, Dict, Optional, Tuple
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -24,10 +24,11 @@ from pandas.api.types import is_datetime64_any_dtype
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+
 
 # ─────────────────────────────────────────────── CONFIG
 DOWNLOAD_DIR = Path(os.getenv("DOWNLOAD_DIR", "/tmp/downloads"))
@@ -203,8 +204,13 @@ def build_dataframe() -> pd.DataFrame:
 
         lat, lon = find_coord_in_record(d)
 
-        # 🔹 SOLO campos de la colección que nos interesan + coords + fecha
+        # ✅ Campos originales + nuevos
         d_clean = {
+            "doc_id": doc.id,
+            "email": d.get("email"),
+            "Nombre": d.get("Nombre"),
+            "Apellido": d.get("Apellido"),
+            "comentario": d.get("comentario"),
             "tamano": d.get("tamano"),
             "condicionSanitaria": d.get("condicionSanitaria"),
             "dateTime": d.get("dateTime"),
@@ -215,7 +221,7 @@ def build_dataframe() -> pd.DataFrame:
 
     df = pd.DataFrame(rows)
 
-    # UTM expandido (si quieres usarlo luego)
+    # UTM expandido
     def _conv(r):
         return pd.Series(
             latlon_to_utm(r["_lat"], r["_lon"]),
@@ -236,7 +242,6 @@ def build_dataframe() -> pd.DataFrame:
         df["dt_minute"] = dt.dt.minute
         df["dt_second"] = dt.dt.second
 
-    # Por si acaso, aunque ya no usamos doc_id
     df = df.drop(columns=["doc_id"], errors="ignore")
     return df
 
@@ -268,7 +273,6 @@ def export_excel(request: Request):
     fname = f"CensaPalma_{ts}.xlsx"
     fpath = DOWNLOAD_DIR / fname
 
-    # Aseguramos que las columnas datetime salgan como string
     for col in df.columns:
         if is_datetime64_any_dtype(df[col]):
             df[col] = df[col].dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -277,6 +281,7 @@ def export_excel(request: Request):
 
     base = str(request.base_url).rstrip("/")
     return JSONResponse({"download_url": f"{base}/downloads/{fname}"})
+
 
 
 
