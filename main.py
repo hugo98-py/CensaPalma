@@ -188,12 +188,13 @@ def _to_scl_timestamp(val):
     try:
         ts = pd.to_datetime(val, errors="coerce")
         if ts.tzinfo is None:
+            # Si viene sin tz, lo interpretamos como hora local SCL
             return ts.tz_localize(SCL)
+        # Si ya viene con tz (ej: UTC), lo convertimos a SCL
         return ts.tz_convert(SCL)
     except Exception:
         return pd.NaT
-
-
+        
 # ─────────────────────────────────────────────── Data builder
 def build_dataframe() -> pd.DataFrame:
     fs = init_fs_client()
@@ -232,9 +233,14 @@ def build_dataframe() -> pd.DataFrame:
         utm_df = df.apply(_conv, axis=1)
         df = pd.concat([df, utm_df], axis=1)
 
-    # fecha → columnas dt_*
+    # fecha → columnas dt_* y normalizamos dateTime a America/Santiago
     if "dateTime" in df.columns:
         dt = df["dateTime"].apply(_to_scl_timestamp)
+
+        # Sobrescribimos dateTime con la versión en SCL, sin info de tz
+        df["dateTime"] = dt.dt.tz_localize(None)
+
+        # columnas derivadas
         df["dt_year"] = dt.dt.year
         df["dt_month"] = dt.dt.month
         df["dt_day"] = dt.dt.day
@@ -281,6 +287,7 @@ def export_excel(request: Request):
 
     base = str(request.base_url).rstrip("/")
     return JSONResponse({"download_url": f"{base}/downloads/{fname}"})
+
 
 
 
